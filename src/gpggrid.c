@@ -15,27 +15,54 @@ static const char charset[] =
     "0123456789"
     "!@#$%^&*()";
 
-void fill_grid(char grid[GRID_ROWS][GRID_COLS]) {
+#define CHARSET_LEN (sizeof(charset) - 1)
+
+// Fill grid with unique characters from charset
+void fill_grid(char grid[GRID_ROWS][GRID_COLS], int page) {
     int fd = open("/dev/urandom", O_RDONLY);
     unsigned char buf;
-    int charset_len = strlen(charset);
+    
+    // Copy charset and shuffle it
+    char pool[CHARSET_LEN];
+    memcpy(pool, charset, CHARSET_LEN);
+    
+    // Fisher-Yates shuffle using urandom
+    for (int i = CHARSET_LEN - 1; i > 0; i--) {
+        read(fd, &buf, 1);
+        int j = buf % (i + 1);
+        char tmp = pool[i];
+        pool[i] = pool[j];
+        pool[j] = tmp;
+    }
+    close(fd);
+    
+    // Fill grid with chars from current page
+    int start = page * GRID_ROWS * GRID_COLS;
     for (int i = 0; i < GRID_ROWS; i++)
         for (int j = 0; j < GRID_COLS; j++) {
-            read(fd, &buf, 1);
-            grid[i][j] = charset[buf % charset_len];
+            int idx = start + i * GRID_COLS + j;
+            if (idx < (int)CHARSET_LEN)
+                grid[i][j] = pool[idx];
+            else
+                grid[i][j] = ' ';
         }
-    close(fd);
 }
 
-void print_grid(char grid[GRID_ROWS][GRID_COLS]) {
+void print_grid(char grid[GRID_ROWS][GRID_COLS], int page, int total_pages) {
+    printf("\n  Page %d/%d — press 'n' for next page, ENTER to confirm\n", 
+           page + 1, total_pages);
     printf("\n    ");
     for (int j = 0; j < GRID_COLS; j++)
         printf(" %d  ", j + 1);
     printf("\n");
     for (int i = 0; i < GRID_ROWS; i++) {
         printf(" %c  ", 'A' + i);
-        for (int j = 0; j < GRID_COLS; j++)
-            printf("[%c] ", grid[i][j]);
+        for (int j = 0; j < GRID_COLS; j++) {
+            if (grid[i][j] == ' ')
+                printf("[ ] ");
+            else
+                printf("[%c] ", grid[i][j]);
+        }
         printf("\n");
     }
     printf("\n");
@@ -46,16 +73,19 @@ char *get_passphrase() {
     static char passphrase[MAX_PASS];
     char input[16];
     int pass_len = 0;
+    int total_pages = (CHARSET_LEN + GRID_ROWS * GRID_COLS - 1) / (GRID_ROWS * GRID_COLS);
+    int page = 0;
 
     fprintf(stderr, "GPGgrid - Anti-keylogger passphrase entry\n");
     fprintf(stderr, "Select characters by row (A-F) and column (1-6)\n");
-    fprintf(stderr, "Press ENTER alone to confirm\n\n");
+    fprintf(stderr, "Press 'n' for next page, ENTER alone to confirm\n\n");
+
+    fill_grid(grid, page);
 
     while (1) {
-        fill_grid(grid);
-        print_grid(grid);
+        print_grid(grid, page, total_pages);
 
-        fprintf(stderr, "Select [RowCol] (e.g. A3) or ENTER to confirm: ");
+        fprintf(stderr, "Select [RowCol] (e.g. A3), 'n' for next page, or ENTER to confirm: ");
         fflush(stderr);
 
         if (!fgets(input, sizeof(input), stdin))
@@ -63,8 +93,16 @@ char *get_passphrase() {
 
         input[strcspn(input, "\n")] = 0;
 
+        // ENTER = confirm
         if (strlen(input) == 0)
             break;
+
+        // 'n' = next page, regenerate grid
+        if (strcmp(input, "n") == 0) {
+            page = (page + 1) % total_pages;
+            fill_grid(grid, page);
+            continue;
+        }
 
         if (strlen(input) != 2) {
             fprintf(stderr, "Invalid input. Use RowCol format (e.g. A3)\n");
@@ -79,10 +117,19 @@ char *get_passphrase() {
             continue;
         }
 
+        if (grid[row][col] == ' ') {
+            fprintf(stderr, "Empty cell. Press 'n' for next page.\n");
+            continue;
+        }
+
         if (pass_len < MAX_PASS - 1) {
             passphrase[pass_len++] = grid[row][col];
             fprintf(stderr, "*");
             fflush(stderr);
+
+            // Regenerate grid after each character
+            page = 0;
+            fill_grid(grid, page);
         }
     }
 
@@ -115,13 +162,15 @@ int main(int argc, char *argv[]) {
         close(pipefd[0]);
 
         // Build argv for GPG
-        char **gpg_argv = malloc((argc + 3) * sizeof(char *));
+        char **gpg_argv = malloc((argc + 5) * sizeof(char *));
         gpg_argv[0] = "gpg";
         gpg_argv[1] = "--passphrase-fd";
         gpg_argv[2] = "0";
+        gpg_argv[3] = "--pinentry-mode";
+        gpg_argv[4] = "loopback";
         for (int i = 1; i < argc; i++)
-            gpg_argv[i + 2] = argv[i];
-        gpg_argv[argc + 2] = NULL;
+            gpg_argv[i + 4] = argv[i];
+        gpg_argv[argc + 4] = NULL;
 
         execvp("gpg", gpg_argv);
         fprintf(stderr, "Error executing gpg\n");
