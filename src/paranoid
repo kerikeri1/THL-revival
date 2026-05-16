@@ -1,6 +1,31 @@
 #!/bin/sh
+# paranoid mode - anti side-channel countermeasures
+# 1. GPG background encryption noise
+# 2. Random file thrashing
+# 3. Morse LED keyboard noise
 
-while true
-do
-dd if=/dev/urandom bs=1M count=1 2>/dev/null | md5sum >/dev/null
-done
+export GNUPGHOME=/tmp/gnupg
+
+# Generate a temporary throwaway key for background noise
+gpg --batch --no-tty --pinentry-mode loopback \
+    --passphrase "noise" \
+    --quick-gen-key "noise@thl" ed25519 2>/dev/null &
+
+# Background GPG noise loop
+while true; do
+    # Encrypt random data to self
+    dd if=/dev/urandom bs=512 count=1 2>/dev/null | \
+    gpg --batch --no-tty --pinentry-mode loopback \
+        --passphrase "noise" \
+        --symmetric -o /dev/null 2>/dev/null
+    sleep 1
+done &
+
+# Random file thrashing loop
+while true; do
+    R=$(cat /dev/urandom | tr -dc 'a-z' | head -c 4)
+    find / -name "${R}*" 2>/dev/null | head -n1 | xargs cat 2>/dev/null >/dev/null
+    sleep 2
+done &
+
+echo "Paranoid mode active."

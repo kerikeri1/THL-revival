@@ -16,7 +16,8 @@ read m
 
 case "$m" in
 0)
-/bin/paranoid
+/bin/paranoid &
+exec /bin/menu
 ;;
 g)
 /bin/gpgshell
