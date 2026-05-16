@@ -1,0 +1,6 @@
+#!/bin/sh
+
+while true
+do
+dd if=/dev/urandom bs=1M count=1 2>/dev/null | md5sum >/dev/null
+done

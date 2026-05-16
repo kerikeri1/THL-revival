@@ -1,0 +1,8 @@
+*.gz
+*.tar
+*.tar.xz
+*.img
+*.so
+*.so.*
+linux-*/
+lost+found/

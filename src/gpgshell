@@ -1,0 +1,8 @@
+#!/bin/sh
+export GNUPGHOME=/tmp/gnupg
+gpg-agent --daemon --options /etc/gnupg/gpg-agent.conf 2>/dev/null
+clear
+echo
+echo "THL GPG shell"
+echo
+/bin/sh

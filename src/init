@@ -1,0 +1,12 @@
+#!/bin/sh
+mount -t proc proc /proc
+mount -t sysfs sysfs /sys
+mount -t devtmpfs devtmpfs /dev
+mkdir -p /dev/pts
+mount -t devpts devpts /dev/pts
+mount -t tmpfs tmpfs /tmp
+mkdir -p /tmp/gnupg
+chmod 700 /tmp/gnupg
+ln -sf /dev/ttyS0 /dev/tty
+clear
+exec /bin/menu

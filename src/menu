@@ -1,0 +1,36 @@
+#!/bin/sh
+
+clear
+
+cat << EOF
+Welcome to Tinfoil Hat Linux
+
+0) Paranoid mode
+g) GPG shell
+s) Shell
+r) Reboot
+p) Poweroff
+EOF
+
+read m
+
+case "$m" in
+0)
+/bin/paranoid
+;;
+g)
+/bin/gpgshell
+;;
+s)
+/bin/sh
+;;
+r)
+reboot -f
+;;
+p)
+poweroff -f
+;;
+*)
+exec /bin/menu
+;;
+esac
