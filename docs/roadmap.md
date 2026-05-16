@@ -11,10 +11,10 @@ Current status
 Next steps
 
  gpggrid
-Rewrite of the original gpggrid tool — grid-based passphrase entry to defeat hardware keyloggers. The most unique feature of the original THL.
+Rewrite of the original gpggrid tool — grid-based passphrase entry to defeat hardware keyloggers.
 
 paranoid mode (complete)
 Full implementation: GPG background encryption + random file thrashing + morse LED on keyboard LEDs.
 
 backup to USB
-Replace the original floppy backup with USB — same logic, same philosophy, modern hardware.
+Replace the original floppy backup with USB, same logic, same philosophy.
