@@ -13,7 +13,6 @@ gpg --batch --no-tty --pinentry-mode loopback \
 
 # Background GPG noise loop
 while true; do
-    # Encrypt random data to self
     dd if=/dev/urandom bs=512 count=1 2>/dev/null | \
     gpg --batch --no-tty --pinentry-mode loopback \
         --passphrase "noise" \
@@ -27,5 +26,8 @@ while true; do
     find / -name "${R}*" 2>/dev/null | head -n1 | xargs cat 2>/dev/null >/dev/null
     sleep 2
 done &
+
+# Morse LED keyboard noise
+/bin/morseled &
 
 echo "Paranoid mode active."
