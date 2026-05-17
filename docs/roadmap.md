@@ -1,20 +1,24 @@
-Roadmap
+THL Revival — Roadmap
 
-Current status
-- Bootable initramfs
+Current status (v0.1-alpha)
+- Bootable initramfs 
 - BusyBox 
 - GPG 2.4.9 
-- Basic menu 
+- Menu 
 - Shell 
-- Paranoid mode (stub) 
+- gpggrid — anti-keylogger passphrase entry with full charset and multi-page grid 
+- Paranoid mode — GPG background noise + file thrashing + morse LED 
 
 Next steps
 
- gpggrid
-Rewrite of the original gpggrid tool — grid-based passphrase entry to defeat hardware keyloggers.
+wipe integration
+Add wipe/shred as a dedicated menu option — secure file and disk erasure, faithful to the original.
 
-paranoid mode (complete)
-Full implementation: GPG background encryption + random file thrashing + morse LED on keyboard LEDs.
+backup to USB with LUKS
+Replace the original floppy backup with USB — same logic, same philosophy, encrypted with LUKS.
 
-backup to USB
-Replace the original floppy backup with USB, same logic, same philosophy.
+GPG image signing
+Sign the final image with GPG — same as the original `signing.asc`. Zero trust starts with the image itself.
+
+boot from real USB
+Test and document boot from physical USB hardware, not just QEMU.
