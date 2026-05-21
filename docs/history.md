@@ -16,14 +16,14 @@ The last known release was version 1.000, dated February 2002.
 
 The starting point
 
-This project started from a single file: tinfoil.gz — a FAT12 floppy image with SYSLINUX, mislabeled with a .gz extension.
+This project started from a single file: tinfoil.gz, a FAT12 floppy image with SYSLINUX, mislabeled with a .gz extension.
 From that file i extracted:
 
--bzImage — the original kernel
--initrd.gz — the original filesystem (ext2)
--readme.txt — original documentation
--signing.asc — GPG signature
--All original scripts: menu, paranoid, backup, bggpg.sh
+- bzImage: the original kernel
+- initrd.gz: the original filesystem (ext2)
+- readme.txt: original documentation
+- signing.asc: GPG signature
+- All original scripts: menu, paranoid, backup, bggpg.sh
 
 Reading those scripts was the foundation of this revival — every decision in THL Revival traces back to what The Shmoo Group originally built.
 
