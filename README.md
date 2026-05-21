@@ -10,9 +10,9 @@ keep being paranoid, keep having no trust ;P
 
 ## What is this?
 
-This is not a new distro. This is not a "modern secure OS". This is Tinfoil Hat Linux — born in 2002 by The Shmoo Group — brought back to life on modern hardware.
+This is not a new distro. This is not a "modern secure OS". This is Tinfoil Hat Linux, born in 2002 by The Shmoo Group, brought back to life on modern hardware.
 
-The original ran on a single 1.44MB floppy. Everything in RAM. GPG as the only tool that mattered. Boot, encrypt, shut down, leave no trace. That idea never got old. The floppy did tho (rip!!!)
+The original ran on a single 1.44MB floppy. Everything in RAM. GPG as the only tool that mattered. Boot, encrypt, shut down, leave no trace. That idea never got old. The floppy did tho. (rip!!!)
 
 THL Revival is a faithful reconstruction of the original philosophy — same paranoia, same zero trust model, same RAM-only approach. We updated what had to change. We kept everything that made THL, THL.
 
