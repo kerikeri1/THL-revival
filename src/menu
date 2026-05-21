@@ -1,37 +1,93 @@
 #!/bin/sh
-
 clear
-
 cat << EOF
 Welcome to Tinfoil Hat Linux
-
 0) Paranoid mode
 g) GPG shell
+w) Wipe disk/file
+b) Backup to encrypted USB
 s) Shell
 r) Reboot
 p) Poweroff
 EOF
-
-read m
-
-case "$m" in
+read MENU
+case "$MENU" in
 0)
-/bin/paranoid &
-exec /bin/menu
+    /bin/paranoid &
+    exec /bin/menu
 ;;
 g)
-/bin/gpgshell
+    exec /bin/gpgshell
+;;
+w)
+    clear
+    echo "WIPE MODE"
+    echo
+    echo "Examples:"
+    echo "  /dev/sda"
+    echo "  /dev/sda1"
+    echo "  /tmp/file.txt"
+    echo
+    echo -n "Target: "
+    read TARGET
+    echo
+    echo "WARNING: this will destroy all data on $TARGET"
+    echo -n "Type YES to confirm: "
+    read CONFIRM
+    if [ "$CONFIRM" != "YES" ]; then
+        exec /bin/menu
+    fi
+    echo
+    echo "1) zero fill"
+    echo "2) random fill"
+    read MODE
+    if [ "$MODE" = "1" ]; then
+        dd if=/dev/zero of=$TARGET bs=16M status=progress
+    else
+        dd if=/dev/urandom of=$TARGET bs=16M status=progress
+    fi
+    sync
+    echo
+    echo "Wipe complete."
+    read X
+    exec /bin/menu
+;;
+b)
+    clear
+    mkdir -p /mnt/usb
+    echo "Encrypted USB backup"
+    echo
+    echo "Example device: /dev/sdb1"
+    echo
+    echo -n "Device: "
+    read DEV
+    cryptsetup luksOpen $DEV thlusb || exec /bin/menu
+    mount /dev/mapper/thlusb /mnt/usb || {
+        cryptsetup luksClose thlusb
+        exec /bin/menu
+    }
+    mkdir -p /mnt/usb/thl-backup
+    if [ -d /tmp/gnupg ]; then
+        cp -a /tmp/gnupg /mnt/usb/thl-backup/
+    fi
+    sync
+    umount /mnt/usb
+    cryptsetup luksClose thlusb
+    echo
+    echo "Backup complete."
+    read X
+    exec /bin/menu
 ;;
 s)
-/bin/sh
+    exec /bin/sh
 ;;
 r)
-reboot -f
+    reboot -f
 ;;
 p)
-poweroff -f
+    poweroff -f
 ;;
 *)
-exec /bin/menu
+    exec /bin/menu
 ;;
 esac
