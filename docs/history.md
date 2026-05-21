@@ -1,4 +1,4 @@
-THL Revival — History
+THL Revival: History
 
 The original: Tinfoil Hat Linux was created by The Shmoo Group in 2002. It was a single floppy disk live OS designed for one purpose: give you a safe place to use GPG on a machine you don't trust.
 
