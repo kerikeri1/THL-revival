@@ -25,7 +25,7 @@ From that file i extracted:
 - signing.asc: GPG signature
 - All original scripts: menu, paranoid, backup, bggpg.sh
 
-Reading those scripts was the foundation of this revival — every decision in THL Revival traces back to what The Shmoo Group originally built.
+Reading those scripts was the foundation of this revival, every decision in THL Revival traces back to what The Shmoo Group originally built.
 
 The revival
 
