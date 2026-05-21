@@ -57,18 +57,21 @@ b)
     mkdir -p /mnt/usb
     echo "Encrypted USB backup"
     echo
-    echo "Example device: /dev/sdb1"
+    echo "Example device: /dev/sda"
     echo
     echo -n "Device: "
     read DEV
-    cryptsetup luksOpen $DEV thlusb || continue
-    mount /dev/mapper/thlusb /mnt/usb || {
-        cryptsetup luksClose thlusb
-        continue
-    }
+    cryptsetup luksOpen $DEV thlusb
+    echo "luks open exit code: $?"
+    mount /dev/mapper/thlusb /mnt/usb
+    echo "mount exit code: $?"
+    ls /mnt/usb/
     mkdir -p /mnt/usb/thl-backup
     if [ -d /tmp/gnupg ]; then
         cp -a /tmp/gnupg /mnt/usb/thl-backup/
+        echo "backup complete"
+    else
+        echo "no keyring found in /tmp/gnupg"
     fi
     sync
     umount /mnt/usb

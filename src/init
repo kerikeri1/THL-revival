@@ -5,6 +5,8 @@ mount -t devtmpfs devtmpfs /dev
 mkdir -p /dev/pts
 mount -t devpts devpts /dev/pts
 mount -t tmpfs tmpfs /tmp
+mount -t tmpfs tmpfs /run
+mkdir -p /run/cryptsetup
 mkdir -p /tmp/gnupg
 chmod 700 /tmp/gnupg
 ln -sf /dev/ttyS0 /dev/tty
