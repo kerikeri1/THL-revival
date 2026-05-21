@@ -20,12 +20,12 @@ THL Revival is a faithful reconstruction of the original philosophy — same par
 
 What works
 
-- Bootable live OS — runs entirely in RAM, nothing touches the disk
+- Bootable live OS: runs entirely in RAM, nothing touches the disk
 - BusyBox + shell
-- GnuPG 2.4.9 — key generation, encryption, decryption
-- gpggrid — anti-keylogger passphrase entry, full charset, multi-page grid
-- Paranoid mode — GPG background noise + file thrashing + morse LED on keyboard LEDs
-- Wipe — secure erasure of files and disks
+- GnuPG 2.4.9: key generation, encryption, decryption
+- gpggrid: anti-keylogger passphrase entry, full charset, multi-page grid
+- Paranoid mode: GPG background noise + file thrashing + morse LED on keyboard LEDs
+- Wipe: secure erasure of files and disks
 - Encrypted USB backup with LUKS
 
 ---
