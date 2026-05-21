@@ -7,8 +7,8 @@ The original featured:
 Linux kernel 2.4.x
 - GnuPG 1.0.6 compiled with uClibc
 - BusyBox patched with custom tools
-- gpggrid — grid-based passphrase entry to defeat hardware keyloggers
-- paranoid mode — GPG background noise + file thrashing + morse LED
+- gpggrid grid-based passphrase entry to defeat hardware keyloggers
+- paranoid mode GPG background noise + file thrashing + morse LED
 - loop-AES encrypted ramdisk
 - SYSLINUX bootloader on a 1.44MB floppy
 
