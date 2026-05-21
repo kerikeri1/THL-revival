@@ -31,11 +31,11 @@ The revival
 
 THL Revival is a faithful reconstruction of the original, updated for modern hardware:
 
--Kernel 6.12.28
--GnuPG 2.4.9
--BusyBox static
--gpggrid rewritten in C with full charset and multi-page grid
--Paranoid mode fully implemented
--USB instead of floppy
--Encrypted USB backup with LUKS instead of loop-AES
--Wipe integrated in menu
+- Kernel 6.12.28
+- GnuPG 2.4.9
+- BusyBox static
+- gpggrid rewritten in C with full charset and multi-page grid
+- Paranoid mode fully implemented
+- USB instead of floppy
+- Encrypted USB backup with LUKS instead of loop-AES
+- Wipe integrated in menu
