@@ -1,4 +1,6 @@
 #!/bin/sh
+
+while true; do
 clear
 cat << EOF
 Welcome to Tinfoil Hat Linux
@@ -14,11 +16,10 @@ read MENU
 case "$MENU" in
 0)
     /bin/paranoid &
-    exec /bin/menu
-;;
+    ;;
 g)
-    exec /bin/gpgshell
-;;
+    /bin/gpgshell
+    ;;
 w)
     clear
     echo "WIPE MODE"
@@ -35,23 +36,22 @@ w)
     echo -n "Type YES to confirm: "
     read CONFIRM
     if [ "$CONFIRM" != "YES" ]; then
-        exec /bin/menu
+        continue
     fi
     echo
     echo "1) zero fill"
     echo "2) random fill"
     read MODE
     if [ "$MODE" = "1" ]; then
-        dd if=/dev/zero of=$TARGET bs=16M status=progress
+        dd if=/dev/zero of=$TARGET bs=16M
     else
-        dd if=/dev/urandom of=$TARGET bs=16M status=progress
+        dd if=/dev/urandom of=$TARGET bs=16M
     fi
     sync
     echo
     echo "Wipe complete."
     read X
-    exec /bin/menu
-;;
+    ;;
 b)
     clear
     mkdir -p /mnt/usb
@@ -61,10 +61,10 @@ b)
     echo
     echo -n "Device: "
     read DEV
-    cryptsetup luksOpen $DEV thlusb || exec /bin/menu
+    cryptsetup luksOpen $DEV thlusb || continue
     mount /dev/mapper/thlusb /mnt/usb || {
         cryptsetup luksClose thlusb
-        exec /bin/menu
+        continue
     }
     mkdir -p /mnt/usb/thl-backup
     if [ -d /tmp/gnupg ]; then
@@ -76,18 +76,15 @@ b)
     echo
     echo "Backup complete."
     read X
-    exec /bin/menu
-;;
+    ;;
 s)
-    exec /bin/sh
-;;
+    /bin/sh
+    ;;
 r)
     reboot -f
-;;
+    ;;
 p)
     poweroff -f
-;;
-*)
-    exec /bin/menu
-;;
+    ;;
 esac
+done
