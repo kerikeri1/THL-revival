@@ -16,12 +16,12 @@ Next steps
 
 GPG image signing
 
-Sign the final image with GPG — same as the original `signing.asc`.
+- Sign the final image with GPG — same as the original `signing.asc`.
 
 boot from real USB
 
-Test and document boot from physical USB hardware, not just QEMU.
+- Test and document boot from physical USB hardware, not just QEMU.
 
 gpggrid in menu
 
-Add gpggrid as a dedicated menu option for passphrase entry directly from the main menu.
+- Add gpggrid as a dedicated menu option for passphrase entry directly from the main menu.
