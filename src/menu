@@ -6,6 +6,7 @@ cat << EOF
 Welcome to Tinfoil Hat Linux
 0) Paranoid mode
 g) GPG shell
+G) GPG with gpggrid (anti-keylogger passphrase)
 w) Wipe disk/file
 b) Backup to encrypted USB
 s) Shell
@@ -19,6 +20,16 @@ case "$MENU" in
     ;;
 g)
     /bin/gpgshell
+    ;;
+G)
+    clear
+    echo "GPGgrid mode"
+    echo "Usage: gpggrid <gpg arguments>"
+    echo "Example: gpggrid --symmetric /tmp/file.txt"
+    echo
+    export GNUPGHOME=/tmp/gnupg
+    gpg-agent --daemon --options /etc/gnupg/gpg-agent.conf 2>/dev/null
+    /bin/sh
     ;;
 w)
     clear
@@ -62,16 +73,10 @@ b)
     echo -n "Device: "
     read DEV
     cryptsetup luksOpen $DEV thlusb
-    echo "luks open exit code: $?"
     mount /dev/mapper/thlusb /mnt/usb
-    echo "mount exit code: $?"
-    ls /mnt/usb/
     mkdir -p /mnt/usb/thl-backup
     if [ -d /tmp/gnupg ]; then
         cp -a /tmp/gnupg /mnt/usb/thl-backup/
-        echo "backup complete"
-    else
-        echo "no keyring found in /tmp/gnupg"
     fi
     sync
     umount /mnt/usb
