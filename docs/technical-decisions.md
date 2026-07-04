@@ -6,171 +6,123 @@ something is the way it is, or contribute without breaking the philosophy.
 
 ---
 
-## Kernel
+## Threat Model
 
-### Starting point: allnoconfig
+THL Revival is designed to protect against a specific set of threats. Being
+explicit about what it does and does not protect against is more useful than
+vague security claims.
 
-The original THL kernel was compiled for a specific purpose: boot, run GPG,
-shut down. No networking, no sound, no graphics stack.
+### What THL protects against
 
-Our first kernel build started from a default configuration,a
-desktop-oriented config with 1579 enabled options, 144 networking options,
-full WiFi stack (CFG80211, MAC80211, drivers for Atheros, Broadcom, Intel,
-Realtek), sound, DRM, and more. The kernel image was 14MB.
+Untrusted computers: THL boots from external media and runs entirely in RAM.
+The host operating system is never executed. No data is written to the host
+disk at any point during a session.
 
-This directly contradicted the manifesto: "every single thing running on
-this machine needs to justify its existence."
+Forensic acquisition after shutdown: all sensitive data lives in RAM. On
+shutdown, RAM loses its contents within seconds at room temperature. There
+is no swap partition and no disk writes during normal operation.
 
-We rebuilt from `make allnoconfig` everything disabled by default and
-enabled only what could be justified. The result is 617 enabled options and
-a 2.5MB kernel image.
+Offline disk analysis: because nothing is written to disk, there is nothing
+to analyze after the fact.
 
-### Why CONFIG_NET=y despite "no network"
+Hardware keyloggers: gpggrid allows passphrase entry via grid coordinates
+rather than direct key presses. A keylogger records coordinates that are
+meaningless without the grid, which changes for every character.
 
-The manifesto says "no network you didn't personally approve." This refers
-to network connectivity: Ethernet, WiFi, IP stack, routing. None of those
-are enabled.
+Cold boot attacks on session data: sensitive buffers (passphrases, grid
+contents) are wiped immediately after use with secure_bzero and never stored
+in global or heap memory.
 
-`CONFIG_NET=y` is required as a dependency for Unix domain sockets
-(`CONFIG_UNIX=y`), which gpg-agent uses for IPC between itself and gpg.
-Without Unix sockets, gpg-agent cannot start and GPG key operations fail.
+### What THL does not protect against
 
-There is no network interface driver, no IP stack, no Ethernet support.
-`CONFIG_NET=y` here enables only the socket abstraction layer, not any
-form of network connectivity.
+Malicious firmware: THL cannot verify or replace UEFI, BIOS, or device
+firmware. A compromised firmware can observe memory before the kernel loads.
 
-Verified: `grep -E '^CONFIG_(WLAN|WIRELESS|INET|IPV6|ETHERNET)' .config | grep '=y'`
-returns zero results except `CONFIG_WIRELESS=y` which is an empty container
-with no drivers underneath it.
+Compromised CPU microcode: microcode updates are applied by firmware before
+the kernel runs. THL has no visibility into this layer.
 
-### Why LUKS1 instead of LUKS2
+DMA attacks: devices with direct memory access (Thunderbolt, FireWire, some
+PCIe devices) can read RAM directly. THL does not enable IOMMU protection.
 
-LUKS2 uses argon2id as the default key derivation function, configured with
-1GB of memory by default on modern systems. The cryptsetup binary inside THL
-does not have enough RAM available in the initramfs environment to complete
-the argon2id computation.
+Physical observation: a camera or shoulder surfing can capture what is
+displayed on screen. ctheme-style contrast reduction is a future consideration.
 
-LUKS1 uses PBKDF2 which works within the memory constraints of our minimal
-environment. This is a compatibility constraint, not a security downgrade for
-our threat model, the USB backup is a short-term storage medium used in
-air-gapped conditions, not long-term archival storage.
+Malicious kernel: THL trusts its own kernel. A compromised bzImage would
+compromise everything. This is mitigated by GPG image signing.
 
-### What is not in the kernel and why
-
-| Category | Status | Reason |
-|---|---|---|
-| Networking (TCP/IP, Ethernet) | disabled | not needed, attack surface |
-| WiFi / WLAN | disabled | original THL had no networking |
-| Bluetooth | disabled | not needed, attack surface |
-| Sound | disabled | not needed |
-| DRM / graphics | disabled | THL runs in text console only |
-| Kernel modules | disabled | all drivers built-in or absent, no runtime loading |
+Long-term memory remanence: RAM contents can persist for minutes if cooled
+deliberately (liquid nitrogen attacks). This is outside the scope of THL's
+threat model.
 
 ---
 
-## gpggrid
+## Kernel
 
-### The original vulnerability
+### Why allnoconfig
 
-The first version of gpggrid stored the passphrase in a `static` local
-variable inside `get_passphrase()`:
+The first kernel build started from a default desktop configuration:
+1579 enabled options, 144 networking options, full WiFi stack, sound, DRM,
+and a 14MB image.
 
-```c
-static char passphrase[MAX_PASS];
-```
+This failed the manifesto criterion: every single thing running on this
+machine needs to justify its existence.
 
-`static` means the variable lives in the process's static segment for the
-entire lifetime of the process not on the stack. This was necessary to
-return a pointer to the caller without undefined behaviour, but created a
-security problem: the passphrase remained in memory until `memset()` was
-explicitly called at the end of `main()`.
+We rebuilt from make allnoconfig (everything disabled) and enabled only what
+could be justified. The result is 617 enabled options and a 2.5MB image.
 
-The problem is timing. If the process was interrupted by a signal (SIGINT
-from Ctrl+C, SIGTERM from kill, SIGHUP from terminal close) between the
-moment the user entered the passphrase and the moment `memset()` was called,
-the process terminated without wiping. The passphrase stayed in RAM
-indefinitely.
+### Why CONFIG_NET=y despite no networking
 
-On a normal system with an active OS, that memory would be overwritten
-quickly by other processes. On THL — which runs entirely in RAM with minimal
-process activity, the passphrase could persist for the entire session.
+Problem: gpg-agent requires Unix domain sockets for IPC with gpg. Unix
+sockets depend on CONFIG_UNIX, which depends on CONFIG_NET.
 
-A cold boot attack (physically removing power and reading RAM contents before
-they decay) could recover it.
+Impact: without CONFIG_NET, gpg-agent cannot start and all GPG key
+operations fail.
 
-This was a direct contradiction of the manifesto for the project's most
-iconic feature.
+Resolution: CONFIG_NET=y enables only the socket abstraction layer. There
+is no Ethernet driver, no IP stack, no WiFi, no routing. The presence of
+CONFIG_NET does not enable any form of network connectivity.
 
-### The fix
+Verified with: grep -E '^CONFIG_(WLAN|WIRELESS|INET|IPV6|ETHERNET)' .config | grep '=y'
+returns no connectivity-related results.
 
-The fix has three parts:
+### Why LUKS1 instead of LUKS2
 
-**1. Signal handlers**
-We install handlers for SIGINT, SIGTERM, SIGHUP, and SIGQUIT that call
-`secure_bzero()` on the passphrase before calling `_exit()`. SIGSEGV and
-SIGABRT are intentionally NOT intercepted: a segfault implies undefined
-behaviour already, and calling memset on potentially corrupt memory could
-make things worse.
+Problem: LUKS2 uses argon2id as its default key derivation function,
+configured with 1GB of memory by default. The cryptsetup binary inside THL
+does not have enough available RAM to complete the argon2id computation in
+our minimal initramfs environment.
 
-**2. Global pointer, stack storage**
-The passphrase buffer lives on the stack of `main()` — minimum lifetime,
-automatically gone when the function returns. A global volatile pointer
-`g_secret` points to it so the signal handler can reach it from any
-execution context without the buffer being global itself.
+Impact: cryptsetup fails silently when attempting to open a LUKS2 volume.
 
-**3. Immediate wipe after use**
-The passphrase is wiped with `secure_bzero()` immediately after being
-written to the pipe, not at program exit. There is no reason to keep it
-in memory after GPG has received it.
+Resolution: LUKS1 uses PBKDF2 which works within our memory constraints.
+This is a compatibility constraint, not a security downgrade for our threat
+model. The USB backup is short-term storage used in air-gapped conditions.
 
-### Why secure_bzero instead of memset
+### Rejected alternatives
 
-The C compiler is allowed to optimize away `memset()` calls if it determines
-that the memory is not read afterwards. This is a known issue, several
-real world security vulnerabilities have been caused by compilers removing
-"unnecessary" memset calls on sensitive buffers.
+LUKS2 with reduced memory cost: tuning argon2id to use less memory would
+allow LUKS2 to work in our environment. Rejected because it weakens the key
+derivation in ways that are non-obvious to users who format their own USB
+drives with default settings.
 
-`secure_bzero()` uses a `volatile unsigned char *` pointer. The `volatile`
-qualifier tells the compiler that every write is observable and must not be
-elided. The compiler cannot prove that nobody will read that memory, so it
-must emit every store.
+No encryption on USB backup: rejected outright. An unencrypted backup of
+GPG private keys contradicts the entire purpose of THL.
 
-```c
-static inline void secure_bzero(void *ptr, size_t len)
-{
-    volatile unsigned char *p = (volatile unsigned char *)ptr;
-    while (len--)
-        *p++ = 0;
-}
-```
+### What is not in the kernel and why
 
-### Why the signal handler calls secure_bzero
+Networking (TCP/IP, Ethernet): disabled. Not needed, significant attack
+surface, contradicts the original THL design.
 
-POSIX defines a limited set of functions that are safe to call from a signal
-handler (async-signal-safe functions). `memset` and our `secure_bzero` are
-not on that list — they are not async-signal-safe by specification.
+WiFi and WLAN: disabled. The original THL explicitly had no networking.
 
-However, on Linux, `secure_bzero` is simply a sequence of memory stores with
-no system calls, no malloc, no locks. In practice this is safe. We accept
-this trade-off deliberately: the alternative is leaving key material in RAM,
-which is worse. This decision is documented in the code:
+Bluetooth: disabled. Not needed, attack surface.
 
-```c
-/*
- * secure_bzero() is intentionally called from the signal handler.
- * Although POSIX does not specify arbitrary memory writes as an
- * async-signal-safe primitive, on Linux this is simply a sequence
- * of stores and is preferable to leaving key material in RAM.
- */
-```
+Sound: disabled. Not needed for a GPG tool.
 
-### Known remaining limitation
+DRM and graphics stack: disabled. THL runs in text console only.
 
-If the kernel swaps the passphrase page to disk before the wipe occurs, the
-passphrase would exist on disk in plaintext. Protection against this requires
-`mlock()` to pin the page in RAM and prevent swapping. THL runs without swap
-enabled, which mitigates this in practice, but `mlock()` is a future
-improvement.
+Loadable kernel modules: disabled. All required drivers are built-in.
+No runtime loading means no ability to insert unauthorized drivers.
 
 ---
 
@@ -178,48 +130,43 @@ improvement.
 
 ### Why gpg-agent is required
 
-GnuPG 2.x has a hard dependency on gpg-agent. Unlike GPG 1.x (which the
-original THL used), GPG 2.x delegates all private key operations to
-gpg-agent. There is no way to use GPG 2.x for key generation or decryption
-without gpg-agent running.
+GnuPG 2.x has a hard dependency on gpg-agent. Unlike GPG 1.0.6 (which the
+original THL used), GPG 2.x delegates all private key operations to the
+agent. There is no way to use GPG 2.x without gpg-agent running.
 
-The original THL used GPG 1.0.6 which had no agent, everything ran in a
-single process. We accept this architectural change because GPG 2.x provides
-significantly stronger cryptography (Ed25519, AES256, SHA512) and the agent
-model does not weaken the security for our threat model.
+The original THL ran everything in a single process with no agent. We accept
+this architectural change because GPG 2.x provides significantly stronger
+cryptography (Ed25519, AES256, SHA512) and the agent model does not weaken
+the security for our threat model.
 
 ### Why pinentry-curses
 
-GPG 2.x requires a pinentry program to handle passphrase input. Several
-variants exist: pinentry-gnome3, pinentry-x11, pinentry-curses, pinentry-tty.
-
-THL runs in a text console with no graphical environment. pinentry-curses
-is the only variant that works in this environment. It uses ncurses for
-terminal handling, which is why libncursesw.so.6 is included in the
-initramfs.
+GPG 2.x requires a pinentry program for passphrase input. THL runs in a
+text console with no graphical environment. pinentry-curses is the only
+variant that works in this environment. libncursesw.so.6 is included in the
+initramfs as a direct result of this dependency.
 
 ### Why --pinentry-mode loopback
 
-By default, gpg-agent delegates passphrase input to the pinentry program
-via a separate process and a Unix socket. In our QEMU serial console
-environment (/dev/ttyS0 mapped to /dev/tty), this delegation fails with
-"Inappropriate ioctl for device" because the pinentry process cannot
-properly access the terminal.
+Problem: by default, gpg-agent delegates passphrase input to pinentry via
+a separate process and a Unix socket. In our QEMU serial console environment
+(/dev/ttyS0 mapped to /dev/tty), this fails with "Inappropriate ioctl for
+device".
 
-`--pinentry-mode loopback` tells gpg-agent to read the passphrase directly
-from the calling process's stdin instead of launching pinentry. This works
-reliably on our serial console and is the correct mode for programmatic
-passphrase input (which is exactly what gpggrid does).
+Resolution: --pinentry-mode loopback tells gpg-agent to read the passphrase
+directly from the calling process stdin. This works reliably on a serial
+console and is the correct mode for programmatic passphrase input, which is
+exactly what gpggrid does.
 
 ### Why GNUPGHOME=/tmp/gnupg
 
 The original THL stored GPG data on the floppy disk, loaded into a ramdisk
-on boot. We use `/tmp/gnupg` which is on tmpfs — RAM-backed, destroyed on
+on boot. We use /tmp/gnupg which is on tmpfs: RAM-backed, destroyed on
 shutdown, never touches a physical disk. This preserves the original
-"everything in RAM, nothing on disk" guarantee.
+guarantee that nothing persists after the session ends.
 
-The directory is created in `/init` with `chmod 700` to prevent other
-processes from reading key material.
+The directory is created in /init with chmod 700 to prevent other processes
+from reading key material.
 
 ### Why dynamic linking for GPG
 
@@ -229,9 +176,78 @@ larger dependency tree (libgcrypt, libassuan, libnpth, libgpg-error) which
 makes static compilation more complex.
 
 We use the system GPG binary with its shared libraries copied into the
-initramfs. This is a pragmatic choice, the libraries are verified against
-the system package manager and the entire initramfs is GPG-signed. Static
-compilation of GnuPG 2.x is a future improvement.
+initramfs. The libraries are verified against the system package manager
+and the entire initramfs is GPG-signed. Static compilation of GnuPG 2.x
+is listed in future work.
+
+---
+
+## Memory Model
+
+### Security evolution of gpggrid
+
+Version 1: passphrase stored in static local variable inside
+get_passphrase(). Wiped with memset() at end of main().
+
+Problem identified: if the process was interrupted by a signal between
+passphrase entry and the memset() call, the process terminated without
+wiping. The passphrase remained in RAM indefinitely.
+
+Version 2: moved passphrase to stack of main(). Added global volatile
+pointer g_secret so the signal handler can reach it. Added signal handlers
+for SIGINT, SIGTERM, SIGHUP, SIGQUIT. Added secure_bzero().
+
+Version 3: added write_all() to prevent silent passphrase truncation on
+partial pipe writes. Added O_CLOEXEC on /dev/urandom. Added explicit wipe
+of passphrase in child process if execvp() fails. Added n==0 check in
+write_all() to prevent infinite loop on unexpected pipe closure.
+
+Current implementation: passphrase lives on stack of main(), wiped
+immediately after handoff to gpg, signal handlers wipe on any clean
+termination signal.
+
+### Why secure_bzero instead of memset
+
+Theory: the C standard (C11 6.5.2.2) permits the compiler to remove
+memset() calls if it can prove the memory is not read afterwards. This
+optimization is legal and has been observed in practice with GCC and Clang
+when optimizing security-critical code.
+
+Linux reality: secure_bzero uses a volatile unsigned char pointer. The
+volatile qualifier tells the compiler that every write is observable and
+must not be elided. No conforming compiler can remove these stores.
+
+Tradeoff: secure_bzero is marginally slower than memset on large buffers.
+For our MAX_PASS of 256 bytes this is immeasurable. The correctness
+guarantee is worth it.
+
+### Why the signal handler calls secure_bzero
+
+Theory: POSIX defines a limited set of async-signal-safe functions. memset
+and secure_bzero are not on that list. Calling them from a signal handler
+is technically undefined behaviour per POSIX.
+
+Linux reality: secure_bzero is a sequence of memory stores with no system
+calls, no malloc, no locks. On Linux this is safe in practice.
+
+Tradeoff: we accept the theoretical POSIX non-compliance because the
+alternative is leaving key material in RAM on interruption. This decision
+is documented explicitly in the source code so any auditor understands it
+is deliberate.
+
+### Rejected alternatives
+
+Global buffer: rejected because the buffer would persist for the entire
+process lifetime even after being wiped. Stack allocation gives the minimum
+possible lifetime.
+
+Heap allocation with malloc: rejected because malloc introduces allocator
+metadata adjacent to the allocation. On some implementations, sensitive
+data on the heap can leave traces in allocator structures even after free().
+
+Single write() for passphrase: rejected because a single write() on a pipe
+is not guaranteed to write all bytes. A silent truncation would cause GPG to
+receive an incorrect passphrase with no error message.
 
 ---
 
@@ -239,41 +255,17 @@ compilation of GnuPG 2.x is a future improvement.
 
 ### Why a single C file for gpggrid
 
-gpggrid could be split into modules: `grid.c`, `secure_mem.c`, `signals.c`,
-`main.c`. This would be conventional for a project of this size.
+gpggrid could be split into modules: grid.c, secure_mem.c, signals.c,
+main.c. We chose a single file deliberately.
 
-We chose a single file deliberately. THL's philosophy is auditability —
-anyone should be able to read the entire tool in one sitting and understand
-exactly what it does. A single file means:
+THL's philosophy is auditability. Anyone should be able to read the entire
+tool in one sitting and understand exactly what it does. A single file means
+one file to open, one file to read, one file to verify. No build system
+beyond a single gcc invocation. No header files to cross-reference. The
+entire security-critical code is visible without navigation.
 
-- one file to open, one file to read, one file to verify
-- no build system beyond a single gcc invocation
-- no header files to cross-reference
-- the entire security-critical code is visible without navigation
-
-The original THL shipped shell scripts for the same reason — maximum
+The original THL shipped shell scripts for the same reason: maximum
 transparency, minimum complexity.
-
-### Why the passphrase lives on the stack
-
-The passphrase buffer is declared in `main()` and passed by pointer to
-`get_passphrase()`. It could have been a global variable (simpler) or
-heap-allocated with malloc (more flexible).
-
-Stack allocation was chosen because:
-
-- **Minimum lifetime**: stack memory is automatically reclaimed when the
-  function returns. A global would persist for the entire process lifetime
-  even after being wiped.
-- **No heap fragmentation**: malloc introduces allocator metadata adjacent
-  to the allocation. On some implementations, sensitive data on the heap
-  can leave traces in allocator structures even after free().
-- **Explicit control**: the buffer's scope is visible in the source. A
-  reader can see exactly when it exists and when it is wiped.
-
-The only concession is `g_secret` a global volatile pointer to the stack
-buffer, necessary so the signal handler can reach it from any execution
-context. The pointer is set to NULL immediately after the wipe.
 
 ### Why VLA for gpg_argv
 
@@ -281,31 +273,58 @@ context. The pointer is set to NULL immediately after the wipe.
 char *gpg_argv[argc + 5];
 ```
 
-This is a Variable Length Array, its size is determined at runtime. We use
-it instead of `malloc()` for the same reason as stack allocation for the
-passphrase: no heap allocation, no leak possible, automatically cleaned up
-when the scope ends. The array is small (argc will never be large in
-practice) and lives only until `execvp()` replaces the process image.
+Variable Length Array instead of malloc(): no heap allocation, no leak
+possible, automatically cleaned up when the scope ends. The array is small
+(argc will never be large in practice) and lives only until execvp()
+replaces the process image.
 
 ### Why O_CLOEXEC on /dev/urandom
 
-```c
-urandom_fd = open("/dev/urandom", O_RDONLY | O_CLOEXEC);
-```
+O_CLOEXEC marks the file descriptor to be automatically closed when execvp()
+is called. Without it, the fd would be inherited by the GPG child process,
+an unnecessary open file descriptor in a process that has no use for it.
+We close it explicitly in the child anyway, but O_CLOEXEC is the correct
+approach and costs nothing.
 
-`O_CLOEXEC` marks the file descriptor to be automatically closed when
-`execvp()` is called. Without it, the fd would be inherited by the GPG
-child process, an unnecessary open file descriptor in a process that has
-no use for it. We close it explicitly in the child anyway, but `O_CLOEXEC`
-is the belt-and-suspenders approach and costs nothing.
+---
 
-### Why write_all instead of a single write
+## Known Limitations
 
-A single `write()` call on a pipe is not guaranteed to write all bytes
-requested, even for small buffers. The kernel may return a short write if
-the pipe buffer is temporarily full or if the call is interrupted. For
-most data this is acceptable — for a passphrase, a silent truncation would
-cause GPG to receive an incorrect passphrase with no error message.
+mlock(): the passphrase page could theoretically be swapped to disk by the
+kernel before the wipe occurs if swap is enabled. mlock() would pin the page
+in RAM and prevent swapping. THL runs without swap, which mitigates this in
+practice. mlock() is listed in future work.
 
-`write_all()` loops until all bytes are written or an unrecoverable error
-occurs, handling `EINTR` (interrupted by signal) correctly.
+MADV_DONTDUMP: marking the passphrase page with MADV_DONTDUMP would exclude
+it from core dumps. Relevant if core dumps are enabled on the host system.
+
+Static GPG compilation: the current GPG binary is dynamically linked. Static
+compilation would eliminate the shared library dependency and reduce the
+initramfs attack surface.
+
+SIGSEGV and SIGABRT: these signals are not intercepted. A segfault implies
+undefined behaviour already, and running secure_bzero on potentially corrupt
+memory could make things worse. Key material may not be wiped if the process
+crashes. This is an accepted limitation.
+
+---
+
+## Future Work
+
+mlock() on the passphrase buffer to prevent swap exposure.
+
+MADV_DONTDUMP on sensitive memory pages.
+
+explicit_bzero() support via preprocessor detection where available.
+
+Static compilation of GnuPG 2.x with musl libc.
+
+USB boot verification on physical hardware.
+
+Signed release process with reproducible builds.
+
+ctheme-style screen contrast reduction for anti-shoulder-surf and
+anti-photography countermeasures.
+
+Constant-time comparison functions for any future operations that compare
+sensitive values.
