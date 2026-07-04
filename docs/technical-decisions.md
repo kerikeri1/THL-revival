@@ -13,7 +13,7 @@ something is the way it is, or contribute without breaking the philosophy.
 The original THL kernel was compiled for a specific purpose: boot, run GPG,
 shut down. No networking, no sound, no graphics stack.
 
-Our first kernel build started from Kali's default configuration — a
+Our first kernel build started from a default configuration,a
 desktop-oriented config with 1579 enabled options, 144 networking options,
 full WiFi stack (CFG80211, MAC80211, drivers for Atheros, Broadcom, Intel,
 Realtek), sound, DRM, and more. The kernel image was 14MB.
@@ -21,14 +21,14 @@ Realtek), sound, DRM, and more. The kernel image was 14MB.
 This directly contradicted the manifesto: "every single thing running on
 this machine needs to justify its existence."
 
-We rebuilt from `make allnoconfig` — everything disabled by default — and
+We rebuilt from `make allnoconfig` everything disabled by default and
 enabled only what could be justified. The result is 617 enabled options and
 a 2.5MB kernel image.
 
 ### Why CONFIG_NET=y despite "no network"
 
 The manifesto says "no network you didn't personally approve." This refers
-to network connectivity — Ethernet, WiFi, IP stack, routing. None of those
+to network connectivity: Ethernet, WiFi, IP stack, routing. None of those
 are enabled.
 
 `CONFIG_NET=y` is required as a dependency for Unix domain sockets
@@ -52,7 +52,7 @@ the argon2id computation.
 
 LUKS1 uses PBKDF2 which works within the memory constraints of our minimal
 environment. This is a compatibility constraint, not a security downgrade for
-our threat model — the USB backup is a short-term storage medium used in
+our threat model, the USB backup is a short-term storage medium used in
 air-gapped conditions, not long-term archival storage.
 
 ### What is not in the kernel and why
@@ -80,7 +80,7 @@ static char passphrase[MAX_PASS];
 ```
 
 `static` means the variable lives in the process's static segment for the
-entire lifetime of the process — not on the stack. This was necessary to
+entire lifetime of the process not on the stack. This was necessary to
 return a pointer to the caller without undefined behaviour, but created a
 security problem: the passphrase remained in memory until `memset()` was
 explicitly called at the end of `main()`.
@@ -93,7 +93,7 @@ indefinitely.
 
 On a normal system with an active OS, that memory would be overwritten
 quickly by other processes. On THL — which runs entirely in RAM with minimal
-process activity — the passphrase could persist for the entire session.
+process activity, the passphrase could persist for the entire session.
 
 A cold boot attack (physically removing power and reading RAM contents before
 they decay) could recover it.
@@ -120,14 +120,14 @@ execution context without the buffer being global itself.
 
 **3. Immediate wipe after use**
 The passphrase is wiped with `secure_bzero()` immediately after being
-written to the pipe — not at program exit. There is no reason to keep it
+written to the pipe, not at program exit. There is no reason to keep it
 in memory after GPG has received it.
 
 ### Why secure_bzero instead of memset
 
 The C compiler is allowed to optimize away `memset()` calls if it determines
-that the memory is not read afterwards. This is a known issue — several
-real-world security vulnerabilities have been caused by compilers removing
+that the memory is not read afterwards. This is a known issue, several
+real world security vulnerabilities have been caused by compilers removing
 "unnecessary" memset calls on sensitive buffers.
 
 `secure_bzero()` uses a `volatile unsigned char *` pointer. The `volatile`
@@ -183,7 +183,7 @@ original THL used), GPG 2.x delegates all private key operations to
 gpg-agent. There is no way to use GPG 2.x for key generation or decryption
 without gpg-agent running.
 
-The original THL used GPG 1.0.6 which had no agent — everything ran in a
+The original THL used GPG 1.0.6 which had no agent, everything ran in a
 single process. We accept this architectural change because GPG 2.x provides
 significantly stronger cryptography (Ed25519, AES256, SHA512) and the agent
 model does not weaken the security for our threat model.
@@ -229,7 +229,7 @@ larger dependency tree (libgcrypt, libassuan, libnpth, libgpg-error) which
 makes static compilation more complex.
 
 We use the system GPG binary with its shared libraries copied into the
-initramfs. This is a pragmatic choice — the libraries are verified against
+initramfs. This is a pragmatic choice, the libraries are verified against
 the system package manager and the entire initramfs is GPG-signed. Static
 compilation of GnuPG 2.x is a future improvement.
 
@@ -271,7 +271,7 @@ Stack allocation was chosen because:
 - **Explicit control**: the buffer's scope is visible in the source. A
   reader can see exactly when it exists and when it is wiped.
 
-The only concession is `g_secret` — a global volatile pointer to the stack
+The only concession is `g_secret` a global volatile pointer to the stack
 buffer, necessary so the signal handler can reach it from any execution
 context. The pointer is set to NULL immediately after the wipe.
 
@@ -281,7 +281,7 @@ context. The pointer is set to NULL immediately after the wipe.
 char *gpg_argv[argc + 5];
 ```
 
-This is a Variable Length Array — its size is determined at runtime. We use
+This is a Variable Length Array, its size is determined at runtime. We use
 it instead of `malloc()` for the same reason as stack allocation for the
 passphrase: no heap allocation, no leak possible, automatically cleaned up
 when the scope ends. The array is small (argc will never be large in
@@ -295,7 +295,7 @@ urandom_fd = open("/dev/urandom", O_RDONLY | O_CLOEXEC);
 
 `O_CLOEXEC` marks the file descriptor to be automatically closed when
 `execvp()` is called. Without it, the fd would be inherited by the GPG
-child process — an unnecessary open file descriptor in a process that has
+child process, an unnecessary open file descriptor in a process that has
 no use for it. We close it explicitly in the child anyway, but `O_CLOEXEC`
 is the belt-and-suspenders approach and costs nothing.
 
